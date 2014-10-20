@@ -1,0 +1,195 @@
+#include<reg51.h>
+#include<stdio.h>
+#define port P0
+//Display
+bit upflag;
+bit outflag1;
+sbit up=P2^3;
+sbit down=P2^1;
+sbit start=P2^2;
+sbit led1=P1^0;
+sbit led2=P1^1;
+sbit en = P2^5;//2
+sbit rw = P2^6;
+sbit rs = P2^7;   
+sbit busy=P0^7;
+void lcd_int(void);
+void lcd_cmd(unsigned char);
+void lcd_data(unsigned char);
+void delay(unsigned int);
+void ready(void);
+void display(void);
+void key_scan(void);
+void output();
+unsigned char Alp[16]="Alpha = 00  	";
+unsigned int ex,i,digit,count=0,keyflag=0,dispflag=0,outflag=0,startflag=0,Alpha=00,count1=0;
+float time=0.0;
+
+float constant;
+
+void main()
+{
+	led1=0;
+    led2=1;
+   TMOD=0x11;
+   TH0=0xF8;
+   TL0=0xCD;
+   EA=1; //enable all
+   ET0=1; // interrupt enable
+  ET1=1;
+    TR0=1; //time run
+	 
+	IT0 = 1;   // Configure interrupt 0 for falling edge on /INT0 (P3.2)
+	EX0 = 1;   // Enable EX0 Interrupt
+ 
+  lcd_int();
+   for(i=0;i<16;i++)
+	{
+	lcd_data(Alp[i]);
+	}
+ 
+ while(1)
+	{
+ 	if(keyflag==1)
+       	{
+           	keyflag=0;
+           	key_scan();
+       	}
+       	if(dispflag==1 && upflag==1)
+       	{
+           	dispflag=0;
+           	upflag=0;
+           	display();
+       	}
+   	}
+}
+void lcd_int()
+{
+	lcd_cmd(0x3C); // Send cmd to lcd
+	lcd_cmd(0x0f);
+	lcd_cmd(0x06);
+	lcd_cmd(0x01);
+	lcd_cmd(0x80);
+}
+void lcd_cmd(unsigned char a)
+{
+	ready();   
+	port=a;
+	rs=0;
+	en=1;   
+	delay(10);
+	en=0;
+	rw=0;
+ 
+}
+void delay(unsigned int k)
+{
+unsigned int i;
+	for (i=0;i<k;i++);
+}
+
+void lcd_data(unsigned char b)
+{
+
+	ready();    
+	port = b;
+	rs=1;
+	en=1;   
+	delay(10);
+	en=0;
+	rw=0;
+}
+
+void ready()
+{
+	busy=1;
+	rw=1;
+	while(busy==1)
+	{
+   	en=0;
+   	;
+   	en=1;
+	}
+	rw=0;
+	en=0;   
+}
+
+void display()
+{
+	 
+   Alp[9]=(Alpha%100)/10+0x30;
+   Alp[10]=(Alpha%10)/1+0x30;
+  	lcd_cmd(0x80);
+ 	for(i=0;i<16;i++)
+	{
+	lcd_data(Alp[i]);
+	}
+}
+void key_scan()
+{
+   if(up==0)
+	{
+ 	while(up==0);
+    	Alpha++;  
+    	Alpha++;  
+    	Alpha++;  
+    	Alpha++;  
+    	Alpha++;  
+       	 
+    	delay(100);
+    	upflag=1;
+	}
+
+   if(down==0 && Alpha>0)
+ {
+ 	while(down==0);
+ 	Alpha--;    
+ 	Alpha--;    
+ 	Alpha--;    
+ 	Alpha--;    
+ 	Alpha--;    	 
+ 	delay(100);
+ 	upflag=1;
+   	 
+	}
+}
+void timer0isr(void) interrupt 1
+{
+TF0=0; //timer 0 overflow
+TH0=0xF8;
+TL0=0xCD;
+count++;
+	if(count==5)
+	{ keyflag=1;
+	}
+  if(count==10)
+	{
+        	dispflag=1;
+	}
+  if(count==15)
+	{ outflag=1;
+  	count=0;
+	}
+}
+
+void ext_isr(void) interrupt 0
+{
+
+   			 time =(float)Alpha/(50*360);
+    	constant=(float)(1/((11.0592*1000000)/6));
+    	count1=(float)65536-(time/constant);
+    	startflag=1;
+    	TR1=1; //time run
+    	TH1=count1/256;
+   			 TL1=count1%256;
+   			 TR1=1;
+}
+void timer1isr(void) interrupt 3
+{   led1=1;
+	delay(100000);
+	led1=0;
+}
+
+
+
+
